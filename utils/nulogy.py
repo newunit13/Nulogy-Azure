@@ -1,32 +1,23 @@
 from utils.config import NULOGY_SECRET_KEY
 from typing import List, Dict
 from time import sleep
-from datetime import datetime
 from random import randint
+import datetime
 import requests
 import json
 import csv
+import logging
 
 uoms = None
-
-def filename_with_timestamp(report_type: str) -> str:
-    """
-        Returns a string timestamped string with the report type and .csv extension
-
-            Parameter:
-                report_type (str)   : The type of report
-
-            Returns:
-                str : '<timestamp>-<report_type>.csv'
-    """
-    return f"{datetime.now().strftime('%Y%m%d-%H%M')}-{report_type}.csv"
-
+utc_timestamp = datetime.datetime.utcnow().replace(
+        tzinfo=datetime.timezone.utc).isoformat()
 
 def downlad_report(download_url: str) -> str:
 
     response = requests.get(download_url)
 
     if response.status_code != 200:
+        logging.error(f'Error downloading report code {response.status_code}: {response.text}')
         raise Exception(f"Invalid Status code downloading report: {response.status_code}")
     
     return response.content.decode('utf-8')
@@ -43,10 +34,11 @@ def poll_report_url(url: str) -> str:
     response = requests.get(url=url, headers=headers)
 
     if response.status_code != 200:
+        logging.error(f'Polling error code {response.status_code}: {response.text}')
         raise Exception(f"Error in polling: {response.status_code}")
 
     while response.json()['status'] != 'COMPLETED':
-        print('Report not yet ready, sleeping 10 seconds before next poll')
+        logging.info('Report not yet ready, sleeping 10 seconds before next poll')
         sleep(10)
         response = requests.get(url=url, headers=headers)
 
@@ -70,21 +62,19 @@ def get_report(report_code: str, columns: List[str], filters: List[dict]=[], sor
 
     error_count = 0
     while True:
-        print(f"Submitting request for {report_code} report")
+        logging.info(f"Submitting request for {report_code} report")
         response = requests.post(url=url, headers=_headers, data=_data)
 
         if response.status_code == 201:
             break
         
         if response.status_code != 201:
-            with open(F'ERROR-{report_code}-{datetime.now().strftime("%Y%m%d-%H%M")}.txt', 'w') as outfile:
-                outfile.write(f'{response.status_code}-{response.text}')
-                outfile.write(f'Error count: {error_count}')
-                if error_count > 3:
-                    outfile.write(f'Too many failed attempts. Exiting')
-                    raise Exception
-                error_count += 1
-            sleep(randint(60,120))
+            logging.error(f'Get report error {response.status_code}: {response.text}')
+            if error_count > 3:
+                logging.error(f'Too many failed attempts. Exiting')
+                raise Exception
+            error_count += 1
+        sleep(randint(60,120))
 
     # small sleep to give the report a chance to generate before polling for a download link
     sleep(15)
@@ -98,8 +88,7 @@ def get_report(report_code: str, columns: List[str], filters: List[dict]=[], sor
         report = csv.reader(report, delimiter=',', quotechar='"')
 
     except Exception as e:
-        with open(F'EXCEPTION-{report_code}-{datetime.now().strftime("%Y%m%d-%H%M")}.txt', 'w') as outfile:
-            outfile.write(f'{e}')
+        logging.error(f'EXCEPTION-{report_code}-{utc_timestamp}: {e}')
     
     if not headers:
         next(report)
