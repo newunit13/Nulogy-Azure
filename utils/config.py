@@ -4,7 +4,7 @@ from azure.keyvault.secrets import SecretClient
 
 _credential = DefaultAzureCredential()
 
-_keyVaultName = os.environ["AZURE_VAULT_NAME"]
+_keyVaultName = 'Accu-tec-KV'
 _KVUri = f"https://{_keyVaultName}.vault.azure.net"
 
 _client = SecretClient(vault_url=_KVUri, credential=_credential)
