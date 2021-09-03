@@ -1,9 +1,30 @@
 import azure.functions as func
 import utils.nulogy as nu
 import datetime
+import pytz
 import logging
 import requests
 import json
+
+class EST(datetime.tzinfo):
+    def utcoffset(self, dt):
+        return datetime.timedelta(hours = -5)
+    
+    def tzname(self, dt):
+        return "EDT"
+    
+    def dst(self, dt):
+        return datetime.timedelta(0)
+
+class EDT(datetime.tzinfo):
+    def utcoffset(self, dt):
+        return datetime.timedelta(hours = -4)
+    
+    def tzname(self, dt):
+        return "EDT"
+    
+    def dst(self, dt):
+        return datetime.timedelta(0)
 
 
 def main(mytimer: func.TimerRequest) -> None:
@@ -36,7 +57,7 @@ def main(mytimer: func.TimerRequest) -> None:
             "line_performance"  : float(line[6].replace('%','')),
             "line_availability" : float(line[7].replace('%','')),
             "line_effeciency"   : float(line[8].replace('%','')),
-            "timestamp"         : datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S"),
+            "timestamp"         : datetime.datetime.now(pytz.timezone('US/Eastern')).strftime("%m/%d/%Y %H:%M:%S"),
             "percent_complete"  : f"{float(line[9].replace('%','')):0.0f}%",
             "job_id"            : line[0]
         })
