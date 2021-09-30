@@ -1,4 +1,4 @@
-from utils import sql
+from utils import sql, nulogy as nu
 import logging
 
 import azure.functions as func
@@ -16,9 +16,12 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     elif dimension == 'warehouse':
         # TODO: implement warehouse update process
         pass
+    elif dimension == 'item':
+        # TODO: implement item master update process
+        pass
 
 
-
-    
-    return func.HttpResponse(status_code=200)
-
+    if dimension:
+        return func.HttpResponse(f"The dimension is: {dimension}", status_code=200)
+    else:
+        return func.HttpResponse(status_code=200)
