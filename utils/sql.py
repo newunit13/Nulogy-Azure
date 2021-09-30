@@ -27,6 +27,19 @@ def insert(table: str, record: str) -> None:
 
     cnxn.close()
 
+def insert_many(table: str, columns: tuple, records: list[tuple]) -> None:
+
+    cnxn = pyodbc.connect(AZURE_DB_CONNECTION_STRING)
+    cursor = cnxn.cursor()
+
+    cursor.fast_executemany = True
+
+    sql_statement = f"INSERT INTO {table} {columns} VALUES ({'?, '.join(['' for _ in range(len(columns))]) + '?'})"
+    cursor.executemany(sql_statement, records)
+    cursor.commit()
+
+    cnxn.close()
+
 def update(table: str, key_column: str, key_value: str, record: List[tuple]) -> None:
 
     cnxn = pyodbc.connect(AZURE_DB_CONNECTION_STRING)
