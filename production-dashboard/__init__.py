@@ -62,6 +62,20 @@ def main(mytimer: func.TimerRequest) -> None:
             "job_id"            : line[0]
         })
 
+    if not data:
+        data.append({
+            "line_name" :"",
+            "line_leader" :"",
+            "units_produced" :0,
+            "units_remaining" :0,
+            "unit_of_measure" :"",
+            "line_performance" :0,
+            "line_availability" :0,
+            "line_effeciency" :0,
+            "timestamp" :datetime.datetime.now(pytz.timezone('US/Eastern')).strftime("%m/%d/%Y %H:%M:%S"),
+            "percent_complete" :"",
+            "job_id" :""
+        })
     data = json.dumps(data)
     r = requests.post(url=dashboard_url, headers=dashboard_headers, data=data)
 
