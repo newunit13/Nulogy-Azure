@@ -27,6 +27,25 @@ def insert(table: str, record: str) -> None:
 
     cnxn.close()
 
+def insert_or_update(table: str, key: str, record: dict) -> None:
+
+    with pyodbc.connect(AZURE_DB_CONNECTION_STRING) as cnxn:
+        cursor = cnxn.cursor()
+        statement = f"""\
+begin tran
+   UPDATE {table}
+   SET {', '.join([f"[{column}] = '{value}'" for column, value in record.items()])}
+   where [{key}] = {record['Job ID']}
+
+   if @@rowcount = 0
+   begin
+      INSERT INTO {table} ({', '.join([f"[{column}]" for column in record.keys()])}) 
+      VALUES ({', '.join([f"'{value}'" for value in record.values()])})
+   end
+commit tran
+""".replace("\n", " ")
+        cursor.execute(statement)
+
 def insert_many(table: str, columns: tuple, records: list[tuple]) -> None:
 
     cnxn = pyodbc.connect(AZURE_DB_CONNECTION_STRING)
