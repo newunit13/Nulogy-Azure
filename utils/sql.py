@@ -35,7 +35,7 @@ def insert_or_update(table: str, key: str, record: dict) -> None:
 begin tran
    UPDATE {table}
    SET {', '.join([f"[{column}] = '{value}'" for column, value in record.items()])}
-   where [{key}] = {record['Job ID']}
+   where [{key}] = {record[key]}
 
    if @@rowcount = 0
    begin
