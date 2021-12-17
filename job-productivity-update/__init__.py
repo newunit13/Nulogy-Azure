@@ -13,7 +13,7 @@ def main(mytimer: func.TimerRequest) -> None:
         logging.info('The timer is past due!')
 
 
-    # Run job profitability report to get all jobs that have no been invoiced. Include [Actual Start Date]
+    # Run job profitability report to get all jobs that have not been invoiced. Include [Actual Start Date]
     report_code = "job_profitability"
     columns = ["actual_job_start_at"]
     filters = [{"column": "invoiced", "operator": "=", "threshold": "false"}]
@@ -26,6 +26,15 @@ def main(mytimer: func.TimerRequest) -> None:
             continue
 
         jobs_not_invoiced[line[0]] = datetime.datetime.strptime(line[1], "%Y-%b-%d %I:%M %p").date()
+
+    # Get jobs that were invoiced yesterday.
+    report_code = "job_profitability"
+    columns = ["invoiced"]
+    filters = [{"column": "invoiced", "operator": "=", "threshold": "true"}, {"column": "invoiced_at", "operator": "=", "threshold": "yesterday"}]
+
+    report = nu.get_report(report_code, columns, filters, headers=False)
+    jobs_invoiced_yesterday = [job_id for job_id, _ in report]
+
 
     # Run job productivity report filtered to min/max start date from job profitability report.
 
@@ -55,15 +64,20 @@ def main(mytimer: func.TimerRequest) -> None:
             "Standard People"       : float(line[9]),
             "Actual People"         : float(line[10]),
             "Actual Hours"          : float(line[11]),
-            "Line Efficiency"       : line[12]
+            "Line Efficiency"       : float(line[12].replace('%', ''))/100,
+            "Invoiced"              : False
         }
 
+    # Update production records with invoiced jobs.
+    for job_id in jobs_invoiced_yesterday:
+        production_records[job_id]["Invoiced"] = True
+
     # Match jobs from job productivity report to jobs from job profitability report.
-    production_records = {k:v for k,v in production_records.items() if k in jobs_not_invoiced}
+    production_records = {k:v for k,v in production_records.items() if k in jobs_not_invoiced or v["Invoiced"]}
 
     # Check database for job ids that are in dataset.
     for job_id, details in production_records.items():
 
-        sql.insert_or_update('PRODUCTION_RECORDS', 'Job ID', details)
+        sql.insert_or_update(table='PRODUCTION_RECORDS', key='Job ID', record=details)
 
     logging.info('Python timer trigger function ran at %s', utc_timestamp)
