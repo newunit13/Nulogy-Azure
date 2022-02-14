@@ -27,7 +27,9 @@ def insert(table: str, record: str) -> None:
 
     cnxn.close()
 
-def insert_or_update(table: str, key: str, record: dict) -> None:
+def insert_or_update(table: str, key: List[str], record: dict) -> None:
+
+    print()
 
     with pyodbc.connect(AZURE_DB_CONNECTION_STRING) as cnxn:
         cursor = cnxn.cursor()
@@ -35,7 +37,7 @@ def insert_or_update(table: str, key: str, record: dict) -> None:
 begin tran
    UPDATE {table}
    SET {', '.join([f"[{column}] = '{value}'" for column, value in record.items()])}
-   where [{key}] = {record[key]}
+   where {' and '.join(f"[{key}] = '{record[key]}'" for key in key)}
 
    if @@rowcount = 0
    begin
