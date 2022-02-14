@@ -11,7 +11,7 @@ class EST(datetime.tzinfo):
         return datetime.timedelta(hours = -5)
     
     def tzname(self, dt):
-        return "EDT"
+        return "EST"
     
     def dst(self, dt):
         return datetime.timedelta(0)
