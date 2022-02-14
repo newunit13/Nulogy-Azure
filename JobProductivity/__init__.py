@@ -78,6 +78,6 @@ def main(mytimer: func.TimerRequest) -> None:
     # Check database for job ids that are in dataset.
     for job_id, details in production_records.items():
 
-        sql.insert_or_update(table='PRODUCTION_RECORDS', key='Job ID', record=details)
+        sql.insert_or_update(table='PRODUCTION_RECORDS', key=['Job ID'], record=details)
 
     logging.info('Python timer trigger function ran at %s', utc_timestamp)
