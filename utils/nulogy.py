@@ -38,9 +38,12 @@ def poll_report_url(url: str) -> str:
         raise Exception(f"Error in polling: {response.status_code}")
 
     while response.json()['status'] != 'COMPLETED':
-        logging.info('Report not yet ready, sleeping 10 seconds before next poll')
+        logging.info(f"Report status {response.json()['status']}, sleeping 10 seconds before next poll")
         sleep(10)
         response = requests.get(url=url, headers=headers)
+        if response.json()['status'] == 'FAILED':
+            logging.error(f"Report failed: {response.json()['status']}")
+            raise Exception(f"Report failed: {response.json()['status']}")
 
     return response.json()['url']
 
