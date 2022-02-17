@@ -1,4 +1,5 @@
 import pyodbc 
+import logging
 from typing import List
 from utils.config import AZURE_DB_CONNECTION_STRING
 
@@ -20,16 +21,20 @@ def insert(table: str, record: str) -> None:
     cnxn = pyodbc.connect(AZURE_DB_CONNECTION_STRING)
     cursor = cnxn.cursor()
 
-    field_headers = []
+    statement = f"INSERT INTO [{table}] VALUES ({record})"
 
-    cursor.execute(f"INSERT INTO [{table}] VALUES ({record})")
-    cursor.commit()
+    try:
+        cursor.execute(statement)
+        cursor.commit()
+    except Exception as e:
+        logging.critical(e)
+        logging.critical(statement)
 
     cnxn.close()
 
 def insert_or_update(table: str, key: List[str], record: dict) -> None:
 
-    print()
+    record = clean_text(record)
 
     with pyodbc.connect(AZURE_DB_CONNECTION_STRING) as cnxn:
         cursor = cnxn.cursor()
@@ -46,7 +51,11 @@ begin tran
    end
 commit tran
 """.replace("\n", " ")
-        cursor.execute(statement)
+
+        try:
+            cursor.execute(statement)
+        except:
+            logging.warn(statement)
 
 def insert_many(table: str, columns: tuple, records: list[tuple]) -> None:
 
@@ -55,7 +64,7 @@ def insert_many(table: str, columns: tuple, records: list[tuple]) -> None:
 
     cursor.fast_executemany = True
 
-    sql_statement = f"INSERT INTO {table} {columns} VALUES ({'?, '.join(['' for _ in range(len(columns))]) + '?'})"
+    sql_statement = f"INSERT INTO {table} ([{'], ['.join(columns)}]) VALUES ({'?, '.join(['' for _ in range(len(columns))]) + '?'})"
     cursor.executemany(sql_statement, records)
     cursor.commit()
 
@@ -76,3 +85,9 @@ WHERE [{key_column}] = '{key_value}'
     cursor.commit()
 
     cnxn.close()
+
+def clean_text(record: dict) -> dict:
+    for key, value in record.items():
+        if isinstance(value, str):
+            record[key] = value.replace("'", "''")
+    return record
