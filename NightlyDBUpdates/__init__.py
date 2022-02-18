@@ -45,7 +45,8 @@ async def process_moves (days: int=2) -> None:
     
     timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
     report_code = 'move_transaction'
-    columns = ['assigned_to', 'from_location', 'from_pallet_number', 'to_location', 'to_pallet_number', 'time_completed_at', 'item_code', 'base_quantity', 'base_unit_of_measure']
+    columns = ['assigned_to', 'from_location', 'from_pallet_number', 'to_location', 'to_pallet_number', 'time_completed_at', 
+               'item_code', 'base_quantity', 'base_unit_of_measure']
     filters = [{'column': 'time_completed_at', 'operator': 'between', 'from_threshold': (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M"),
                                                                       'to_threshold': timestamp.strftime("%Y-%m-%d %H:%M")}]
     
@@ -55,6 +56,27 @@ async def process_moves (days: int=2) -> None:
     for row in report:
         row = {k: v for k, v in zip(headers, row)}
         sql.insert_or_update(table='factMove', key=['Move', 'From pallet number', 'To pallet number', 'Item code'], record=row)
+
+async def process_picks(days: int=7) -> None:
+
+    timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+    report_code = 'picked_inventory'
+    columns = ['date_picked_at', 'drop_off_location', 'expiry_date', 'item_alternate_code_1', 'item_alternate_code_2', 
+               'item_category_name', 'item_class_name', 'item_code', 'item_customer', 'item_description', 'item_family_name', 
+               'item_type_name', 'lot_code', 'pallet_number', 'pick_up_location', 'picked_by', 'project_code', 'project_id', 
+               'project_reference_1', 'project_reference_2', 'project_reference_3', 'ship_order_id', 'ship_order_reference_number', 
+               'site_name', 'status', 'unit_picks_unit_of_measure', 'unit_quantity']
+    filters = [{'column': 'date_picked_at', 'operator': 'between', 'from_threshold': (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M"),
+                                                                      'to_threshold': timestamp.strftime("%Y-%m-%d %H:%M")}]
+
+    report = nulogy.get_report(report_code=report_code, columns=columns, filters=filters)
+
+    headers = next(report)
+    headers.append('Timestamp')
+    for row in report:
+        row.append(timestamp.strftime("%Y-%m-%d %H:%M"))
+        row = {k: v for k, v in zip(headers, row)}
+        sql.insert_or_update(table='factPickedInventory', key=headers[:-1], record=row)
 
 async def process_invoice_report (days: int=7) -> None:
 
@@ -82,6 +104,8 @@ async def process_invoice_report (days: int=7) -> None:
 async def process_job_profitability_report (days: int=7) -> None:
     
     timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+
+    # Job Profitability Report
     report_code = 'job_profitability'
     columns = ['actual_cost_of_labor_and_materials', 'actual_cost_of_labor_and_materials_per_unit', 'actual_gross_margin', 
     'actual_gross_profit', 'actual_job_end_at', 'actual_job_start_at', 'actual_labor_cost', 'actual_labor_cost_per_person_hour', 
@@ -104,19 +128,31 @@ async def process_job_profitability_report (days: int=7) -> None:
     'purchase_order_number', 'reconciled_at', 'reconciliation_status', 'scenario_name', 'service_category_name', 'signed_off', 
     'site_name', 'standard_people', 'standard_person_hours', 'standard_person_hours_per_unit', 'standard_units_per_hour', 'total_charge', 
     'total_charge_per_unit', 'unit_of_measure', 'units_expected', 'units_produced', 'units_remaining']
-    filters = [{'column': 'actual_job_start_at', 'operator': 'between', 'from_threshold': (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M"),
+    filters = [{'column': 'actual_job_start_at', 'operator': 'between', 'from_threshold': '2022-01-01 00:00', #(timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M"),
                                                                         'to_threshold': timestamp.strftime("%Y-%m-%d %H:%M")}]
-
     report = nulogy.get_report(report_code=report_code, columns=columns, filters=filters)
 
+    # Item Master lookup table
+    report_code = 'item_master'
+    columns = ['code', 'base_unit_of_measure']
+    item_base_unit_lookup = nulogy.get_report(report_code=report_code, columns=columns, headers=False)
+    item_base_unit_lookup = {item_code: base_unit_of_measure for item_code, base_unit_of_measure in item_base_unit_lookup}
+
+
     headers = next(report)
+    headers.append('Base unit of measure')
+    headers.append('Base units produced')
     headers.append('Timestamp')
     report = [row for row in report]
-    report_len = len(report)
-    for i, row in enumerate(report):
+    for row in report:
+        row.append('')
+        row.append('')
         row.append(timestamp.strftime("%Y-%m-%d %H:%M"))
         row = {k: v for k, v in zip(headers, row)}
-        logging.info(f'Processing row {i+1} of {report_len}')
+
+        row['Base unit of measure'] = item_base_unit_lookup[row['Item code']]
+        row['Base units produced'] = nulogy.convertToBaseUnits(row['Item code'], row['Unit of measure'], row['Units produced'])
+
         sql.insert_or_update(table='factJobProfitability', key=headers[:-1], record=row)
     
 async def process_labor_report (days: int=7) -> None:
@@ -151,6 +187,7 @@ async def main(mytimer: func.TimerRequest) -> None:
     await process_shipments()
     await process_receipts()
     await process_moves()
+    await process_picks()
     await process_labor_report()
     await process_invoice_report()
     await process_job_profitability_report()
