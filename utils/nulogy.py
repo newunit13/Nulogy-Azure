@@ -47,7 +47,7 @@ def poll_report_url(url: str) -> str:
 
     return response.json()['url']
 
-def get_report(report_code: str, columns: List[str], filters: List[dict]=[], sort_by: List[dict]=[], headers: bool=True) -> bool:
+def get_report(report_code: str, columns: List[str], filters: List[dict]=[], sort_by: List[dict]=[], headers: bool=True):
     url = "https://app.nulogy.net/api/reports/report_runs"
 
     _headers = {
