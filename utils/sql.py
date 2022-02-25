@@ -55,7 +55,7 @@ commit tran
         try:
             cursor.execute(statement)
         except:
-            logging.warn(statement)
+            logging.error(statement)
 
 def insert_many(table: str, columns: tuple, records: list[tuple]) -> None:
 
