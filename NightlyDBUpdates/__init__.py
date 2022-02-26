@@ -4,7 +4,11 @@ import pytz
 import asyncio
 from utils import nulogy, sql
 import azure.functions as func
+import pandas as pd
 
+
+def timestamp() -> str:
+    return datetime.datetime.now(pytz.timezone('US/Eastern')).strftime('%Y-%m-%d %H:%M')
 
 async def process_shipments (days: int=7) -> None:
 
@@ -43,19 +47,47 @@ async def process_receipts (days: int=7) -> None:
 
 async def process_moves (days: int=2) -> None:
     
-    timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+    logging.info('==Processing moves')
+
+    start_time = datetime.datetime.now(pytz.timezone('US/Eastern'))
+    from_threshold = (start_time - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+    to_threshold = start_time.strftime("%Y-%m-%d %H:%M")
+
+
+    logging.info(f"Getting Azure data... {timestamp()}")
+    query = f"""
+    SELECT *
+    FROM factMove
+    WHERE [Time completed] BETWEEN '{from_threshold}' AND '{to_threshold}'"""
+
+    azure_df =  pd.read_sql(query, sql.engine)
+
+
+    logging.info(f"Getting Nulogy data... {timestamp()}")
     report_code = 'move_transaction'
     columns = ['assigned_to', 'from_location', 'from_pallet_number', 'to_location', 'to_pallet_number', 'time_completed_at', 
                'item_code', 'base_quantity', 'base_unit_of_measure']
-    filters = [{'column': 'time_completed_at', 'operator': 'between', 'from_threshold': (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M"),
-                                                                      'to_threshold': timestamp.strftime("%Y-%m-%d %H:%M")}]
+    filters = [{'column': 'time_completed_at', 'operator': 'between', 'from_threshold': from_threshold,
+                                                                      'to_threshold': to_threshold}]
     
     report = nulogy.get_report(report_code=report_code, columns=columns, filters=filters)
 
-    headers = next(report)
-    for row in report:
-        row = {k: v for k, v in zip(headers, row)}
-        sql.insert_or_update(table='factMove', key=['Move', 'From pallet number', 'To pallet number', 'Item code'], record=row)
+
+    logging.info(f"Getting new data... {timestamp()}")
+    field_names = next(report)
+    nulogy_df = pd.DataFrame.from_records(report, columns=field_names)
+
+    # Converting nulogy_df dtypes to match azure_df
+    convert_dict = {column: dtype for column, dtype in zip(azure_df.columns, azure_df.dtypes)}
+    nulogy_df = nulogy_df.astype(convert_dict)
+
+    # Get new unique records
+    unique_df = pd.concat([nulogy_df, azure_df]).drop_duplicates(keep=False)
+
+    logging.info(f"Writing {len(unique_df)} new records to Azure... {timestamp()}")
+    unique_df.to_sql('factMove', sql.engine, if_exists='append', index=False, chunksize=1000)
+
+    logging.info(f"==Finished processing moves... {timestamp()}")
 
 async def process_picks(days: int=7) -> None:
 
@@ -184,12 +216,14 @@ async def main(mytimer: func.TimerRequest) -> None:
     if mytimer.past_due:
         logging.info('The timer is past due!')
 
-    await process_shipments()
-    await process_receipts()
-    await process_moves()
-    await process_picks()
-    await process_labor_report()
-    await process_invoice_report()
-    await process_job_profitability_report()
+    await asyncio.gather(
+        process_shipments(),
+        process_receipts(),
+        process_moves(),
+        process_picks(),
+        process_labor_report(),
+        process_invoice_report(),
+        process_job_profitability_report()
+    )
 
     logging.info('Python timer trigger function ran at %s', est_timestamp)
