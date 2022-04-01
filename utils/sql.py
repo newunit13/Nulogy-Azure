@@ -18,12 +18,13 @@ def query(query: str) -> List[tuple]:
 
     return result
 
-def insert(table: str, record: str) -> None:
+def insert(table: str, record: dict) -> None:
 
     cnxn = pyodbc.connect(AZURE_DB_CONNECTION_STRING)
     cursor = cnxn.cursor()
 
-    statement = f"INSERT INTO [{table}] VALUES ({record})"
+    statement = f"""INSERT INTO {table} ({', '.join([f"[{column}]" for column in record.keys()])}) 
+      VALUES ({', '.join([f"'{value}'" for value in record.values()])})"""
 
     try:
         cursor.execute(statement)
@@ -58,6 +59,19 @@ commit tran
             cursor.execute(statement)
         except:
             logging.error(statement)
+
+def drop_record(table: str, key: str, value: str) -> None:
+
+    cnxn = pyodbc.connect(AZURE_DB_CONNECTION_STRING)
+    cursor = cnxn.cursor()
+
+    statement = f"DELETE FROM [{table}] WHERE [{key}] = '{value}'"
+
+    cursor.execute(statement)
+    cursor.commit()
+
+    cnxn.close()
+
 
 def insert_many(table: str, columns: tuple, records: list[tuple]) -> None:
 
