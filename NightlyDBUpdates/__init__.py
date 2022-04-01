@@ -204,10 +204,16 @@ async def process_labor_report (days: int=7) -> None:
     headers = next(report)
     headers.append('Timestamp')
     report = [row for row in report]
+
+    # Drop records from table that have been processed on a prior run
+    job_ids = set([row[16] for row in report])
+    for job in job_ids:
+        sql.drop_record(table='factLabor', key='Job ID', value=job)
+
     for row in report:
         row.append(timestamp.strftime("%Y-%m-%d %H:%M"))
         row = {k: v for k, v in zip(headers, row)}
-        sql.insert_or_update(table='factLabor', key=headers[:-1], record=row)
+        sql.insert(table='factLabor', record=row)
     
 
 async def main(mytimer: func.TimerRequest) -> None:
