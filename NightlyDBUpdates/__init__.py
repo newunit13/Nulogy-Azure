@@ -214,7 +214,10 @@ async def process_labor_report (days: int=7) -> None:
         row.append(timestamp.strftime("%Y-%m-%d %H:%M"))
         row = {k: v for k, v in zip(headers, row)}
         sql.insert(table='factLabor', record=row)
-    
+
+async def process_weekly_comsumption() -> None:
+    #TODO Implement me    
+    pass
 
 async def main(mytimer: func.TimerRequest) -> None:
     est_timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
