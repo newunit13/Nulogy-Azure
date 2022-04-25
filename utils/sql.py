@@ -23,6 +23,8 @@ def insert(table: str, record: dict) -> None:
     cnxn = pyodbc.connect(AZURE_DB_CONNECTION_STRING)
     cursor = cnxn.cursor()
 
+    record = clean_text(record)
+
     statement = f"""INSERT INTO {table} ({', '.join([f"[{column}]" for column in record.keys()])}) 
       VALUES ({', '.join([f"'{value}'" for value in record.values()])})"""
 
