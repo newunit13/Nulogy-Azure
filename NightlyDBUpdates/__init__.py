@@ -219,6 +219,33 @@ async def process_weekly_comsumption() -> None:
     #TODO Implement me    
     pass
 
+async def process_inventory_snapshot () -> None:
+
+    timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+
+    report_code = "inventory_snapshot"
+    columns = ["pallet_number", "item_type", "customer_name"]
+    report = nulogy.get_report(report_code=report_code, columns=columns)
+    field_names = next(report)
+    inventory_snapshop_df = pd.DataFrame.from_records(report, columns=field_names)
+
+
+    report_code = "pallet_aging"
+    columns = ["location", "pallet_number"]
+    report = nulogy.get_report(report_code=report_code, columns=columns)
+    field_names = next(report)
+    pallet_aging_df = pd.DataFrame.from_records(report, columns=field_names)
+    pallet_aging_df.rename(columns={"Pallet number": "Pallet Number"}, inplace=True)  # Rename column to match inventory_snapshop_df
+
+
+
+    inventory_snapshop_df = inventory_snapshop_df.merge(pallet_aging_df, on='Pallet Number', how='left')
+    inventory_snapshop_df['timestamp'] = timestamp.strftime("%Y-%m-%d %H:%M")
+
+    inventory_snapshop_df.to_sql('factInventory', sql.engine, if_exists='append', index=False, chunksize=1000)
+
+    
+
 async def main(mytimer: func.TimerRequest) -> None:
     est_timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
 
@@ -232,7 +259,8 @@ async def main(mytimer: func.TimerRequest) -> None:
         process_picks(),
         process_labor_report(),
         process_invoice_report(),
-        process_job_profitability_report()
+        process_job_profitability_report(),
+        process_invnetory_snapshot()
     )
 
     logging.info('Python timer trigger function ran at %s', est_timestamp)
