@@ -260,7 +260,7 @@ async def main(mytimer: func.TimerRequest) -> None:
         process_labor_report(),
         process_invoice_report(),
         process_job_profitability_report(),
-        process_invnetory_snapshot()
+        process_inventory_snapshot()
     )
 
     logging.info('Python timer trigger function ran at %s', est_timestamp)
