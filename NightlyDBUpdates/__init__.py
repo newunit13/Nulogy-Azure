@@ -13,6 +13,7 @@ def timestamp() -> str:
 async def process_shipments (days: int=7) -> None:
 
     timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+
     report_code = 'shipment_item'
     columns = ['actual_ship_at', 'ship_order_code', 'bill_of_lading_number', 'ship_order_shipped', 
                'ship_order_customer_name', 'carrier_code', 'trailer_number', 'ship_from', 'ship_to', 
@@ -31,19 +32,34 @@ async def process_shipments (days: int=7) -> None:
 async def process_receipts (days: int=7) -> None:
     
     timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+    from_threshold = (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+    to_threshold = timestamp.strftime("%Y-%m-%d %H:%M")
+
     report_code = 'receipt_item'
-    columns = ['received_at', 'item_customer_name', 'location_name', 'receipt_reference_1',
-               'receipt_carrier_code', 'receipt_status', 'trailer_or_container', 'item_category_name', 'full_pallet_quantity',
-               'case_quantity', 'item_code', 'item_description', 'pallet_number']
-    filters = [{'column': 'received_at', 'operator': 'between', 'from_threshold': (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M"),
-                                                                    'to_threshold': timestamp.strftime("%Y-%m-%d %H:%M")}]
+    columns = ['base_quantity', 'base_unit_of_measure', 'bill_of_lading', 'case_quantity', 'case_unit_of_measure', 
+               'default_quantity', 'default_unit_of_measure', 'expiry_date', 'full_pallet_quantity', 'full_pallet_unit_of_measure', 
+               'internal_notes', 'inventory_category', 'inventory_status', 'item_alternate_code_1', 'item_alternate_code_2', 
+               'item_category_name', 'item_class', 'item_code', 'item_customer_name', 'item_description', 'item_family_name', 
+               'item_shelf_life', 'item_type_name', 'location_name', 'lot_code', 'original_base_quantity', 'original_base_unit_of_measure', 
+               'original_default_quantity', 'original_default_unit_of_measure', 'original_item_code', 'packing_slip', 'pallet_number', 
+               'planned_receipt_expected_receive_at', 'planned_receipt_id', 'project_code', 'receipt_carrier_code', 'receipt_carrier_name', 
+               'receipt_carrier_type', 'receipt_customer_name', 'receipt_item_notes', 'receipt_reference_1', 'receipt_reference_2', 
+               'receipt_status', 'receive_order', 'receive_order_carrier_name', 'receive_order_code', 'receive_order_customer_name', 
+               'receive_order_expected_quantity', 'receive_order_expected_unit_of_measure', 'receive_order_item_expected_delivery_at', 
+               'receive_order_item_unit_purchase_price', 'receive_order_received', 'receive_order_reference', 'received_at', 'received_by', 
+               'receiving_quantity', 'receiving_unit_of_measure', 'site_name', 'trailer_or_container', 'vendor_name']
+    filters = [{'column': 'received_at', 'operator': 'between', 'from_threshold': from_threshold,
+                                                                    'to_threshold': to_threshold}]
 
     report = nulogy.get_report(report_code=report_code, columns=columns, filters=filters)
+
+    # remove old records
+    sql.execute(f"DELETE FROM factReceipt WHERE [Received at] BETWEEN '{from_threshold}' AND '{to_threshold}'")
 
     headers = next(report)
     for row in report:
         row = {k: v for k, v in zip(headers, row)}
-        sql.insert_or_update(table='factReceipt', key=['Receipt', 'Pallet number', 'Item code'], record=row)
+        sql.insert(table='factReceipt', record=row)
 
 async def process_moves (days: int=2) -> None:
     
@@ -254,7 +270,7 @@ async def main(mytimer: func.TimerRequest) -> None:
 
     await asyncio.gather(
         process_shipments(),
-        process_receipts(),
+        process_receipts(days=28),
         process_moves(),
         process_picks(),
         process_labor_report(),
