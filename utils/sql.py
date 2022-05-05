@@ -74,6 +74,15 @@ def drop_record(table: str, key: str, value: str) -> None:
 
     cnxn.close()
 
+def execute(statement: str) -> None:
+
+    cnxn = pyodbc.connect(AZURE_DB_CONNECTION_STRING)
+    cursor = cnxn.cursor()
+
+    cursor.execute(statement)
+    cursor.commit()
+
+    cnxn.close()
 
 def insert_many(table: str, columns: tuple, records: list[tuple]) -> None:
 
