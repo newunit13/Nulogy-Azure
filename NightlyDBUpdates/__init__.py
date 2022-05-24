@@ -10,24 +10,66 @@ import pandas as pd
 def timestamp() -> str:
     return datetime.datetime.now(pytz.timezone('US/Eastern')).strftime('%Y-%m-%d %H:%M')
 
-async def process_shipments (days: int=7) -> None:
-
+async def process_ship_orders (days: int=28) -> None:
     timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+    from_threshold = (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d 00:00")
+    to_threshold = timestamp.strftime("%Y-%m-%d 23:59")
 
-    report_code = 'shipment_item'
-    columns = ['actual_ship_at', 'ship_order_code', 'bill_of_lading_number', 'ship_order_shipped', 
-               'ship_order_customer_name', 'carrier_code', 'trailer_number', 'ship_from', 'ship_to', 
-               'item_code', 'pallet_number', 'case_quantity', 'shipment_invoiced']
-    filters = [{'column': 'actual_ship_at', 'operator': 'between', 'from_threshold': (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M"), 
-                                                                   'to_threshold': timestamp.strftime("%Y-%m-%d %H:%M")},
-               {'column': 'shipment_invoiced', 'operator': '=', 'threshold': 'No'}]
-               
+    report_code = 'ship_order'
+    columns = ['actual_unit_quantity', 'added_unit_quantity', 'carrier', 'carrier_code', 'carrier_type', 
+               'detailed_purchase_order_number', 'expected_ship_at', 'expected_unit_quantity', 'full_pallet_quantity', 
+               'full_pallet_weight', 'full_pallets_unit_of_measure', 'item_alternate_code_1', 'item_alternate_code_2', 
+               'item_category_name', 'item_class', 'item_code', 'item_customer', 'item_description', 'item_family_name', 
+               'item_type_name', 'number_of_shipments', 'ship_order_code', 'ship_order_created_at', 'ship_order_customer', 
+               'ship_order_notes', 'ship_order_reference', 'ship_to', 'ship_to_facility_number', 'shipped', 'shipped_at', 
+               'site_name', 'unit_of_measure']
+    filters = [{'column': 'ship_order_created_at', 'operator': 'between', 'from_threshold': from_threshold, 'to_threshold': to_threshold}]
+
     report = nulogy.get_report(report_code=report_code, columns=columns, filters=filters)
+
+    # remove old records
+    sql.execute(f"DELETE FROM factShipOrder WHERE [Ship Order created at] BETWEEN '{from_threshold}' AND '{to_threshold}'")
 
     headers = next(report)
     for row in report:
         row = {k: v for k, v in zip(headers, row)}
-        sql.insert_or_update(table='factShipment', key=['Shipment', 'Pallet number', 'Item code'], record=row)
+        sql.insert(table='factShipOrder', record=row)
+
+async def process_shipments (days: int=28) -> None:
+
+    timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+    from_threshold = (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d 00:00")
+    to_threshold = timestamp.strftime("%Y-%m-%d 23:59")
+
+    report_code = 'shipment_item'
+    columns = ['actual_arrival_at', 'actual_delivery_at', 'actual_ship_at', 'base_quantity', 
+               'base_unit_of_measure', 'bill_of_lading_number', 'bill_to', 'carrier_code', 
+               'carrier_name', 'carrier_type', 'case_quantity', 'cases_unit_of_measure', 
+               'created_at', 'default_quantity', 'default_unit_of_measure', 'dock_appointment_id', 
+               'estimated_delivery_at', 'expected_arrival_at', 'expiry_date', 'freight_charge_amount', 
+               'freight_charge_terms', 'full_pallet_quantity', 'full_pallets_unit_of_measure', 
+               'internal_notes', 'inventory_category', 'inventory_status_name', 'invoice', 
+               'item_alternate_code_1', 'item_alternate_code_2', 'item_category_name', 'item_class', 
+               'item_code', 'item_customer_name', 'item_description', 'item_family_name', 
+               'item_material_cost_per_unit', 'item_type_name', 'lot_code', 'master_bill_of_lading_number', 
+               'pallet_number', 'produced_by', 'project_po_line_item_number', 'project_purchase_order_number', 
+               'seal_number', 'ship_from', 'ship_order_carrier_name', 'ship_order_code', 'ship_order_customer_name', 
+               'ship_order_date_at', 'ship_order_expected_ship_at', 'ship_order_id', 'ship_order_notes', 
+               'ship_order_reference_number', 'ship_order_ship_to_address', 'ship_order_shipped', 'ship_to', 
+               'ship_to_facility_number', 'shipment_customer_code', 'shipment_customer_name', 'shipment_expected_ship_at', 
+               'shipment_invoiced', 'shipment_item_purchase_order_number', 'shipment_notes', 'site_name', 
+               'tracking_number', 'trailer_number']
+    filters = [{'column': 'Created At', 'operator': 'between', 'from_threshold': from_threshold, 'to_threshold': to_threshold}]
+               
+    report = nulogy.get_report(report_code=report_code, columns=columns, filters=filters)
+
+    # remove old records
+    sql.execute(f"DELETE FROM factShipment WHERE [Created At] BETWEEN '{from_threshold}' AND '{to_threshold}'")
+
+    headers = next(report)
+    for row in report:
+        row = {k: v for k, v in zip(headers, row)}
+        sql.insert(table='factShipment', record=row)
 
 async def process_receipts (days: int=7) -> None:
     
@@ -269,7 +311,8 @@ async def main(mytimer: func.TimerRequest) -> None:
         logging.info('The timer is past due!')
 
     await asyncio.gather(
-        process_shipments(),
+        process_ship_orders(),
+        process_shipments(days=7),
         process_receipts(days=28),
         process_moves(),
         process_picks(),
