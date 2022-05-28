@@ -59,7 +59,7 @@ async def process_shipments (days: int=28) -> None:
                'ship_to_facility_number', 'shipment_customer_code', 'shipment_customer_name', 'shipment_expected_ship_at', 
                'shipment_invoiced', 'shipment_item_purchase_order_number', 'shipment_notes', 'site_name', 
                'tracking_number', 'trailer_number']
-    filters = [{'column': 'Created At', 'operator': 'between', 'from_threshold': from_threshold, 'to_threshold': to_threshold}]
+    filters = [{'column': 'created_at', 'operator': 'between', 'from_threshold': from_threshold, 'to_threshold': to_threshold}]
                
     report = nulogy.get_report(report_code=report_code, columns=columns, filters=filters)
 
@@ -71,7 +71,7 @@ async def process_shipments (days: int=28) -> None:
         row = {k: v for k, v in zip(headers, row)}
         sql.insert(table='factShipment', record=row)
 
-async def process_receipts (days: int=7) -> None:
+async def process_receipts (days: int=28) -> None:
     
     timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
     from_threshold = (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
@@ -312,8 +312,8 @@ async def main(mytimer: func.TimerRequest) -> None:
 
     await asyncio.gather(
         process_ship_orders(),
-        process_shipments(days=7),
-        process_receipts(days=28),
+        process_shipments(),
+        process_receipts(),
         process_moves(),
         process_picks(),
         process_labor_report(),
