@@ -1,5 +1,6 @@
 from utils.config import NULOGY_SECRET_KEY
-from typing import List, Dict
+import utils.sql as sql
+from typing import List, Dict, Tuple
 from time import sleep
 from random import randint
 import datetime
@@ -11,6 +12,31 @@ import logging
 uoms = None
 utc_timestamp = datetime.datetime.utcnow().replace(
         tzinfo=datetime.timezone.utc).isoformat()
+
+def process_report(report_code: str, filter_column: Tuple[str, str], database_table: str, days: int=28) -> None:
+
+    timestamp = datetime.datetime.now()
+    from_threshold = (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d 00:00")
+    to_threshold = timestamp.strftime("%Y-%m-%d 23:59")
+
+
+    nulogy_reports = json.loads(open('nulogy_reports.json').read())
+    columns = [column for column in nulogy_reports[report_code].keys()]
+    filters = [{'column': filter_column, 'operator': 'between', 'from_threshold': from_threshold, 
+                                                                'to_threshold': to_threshold}]
+
+    report = get_report(report_code=report_code, columns=columns, filters=filters)
+
+    # remove old records
+    sql.execute(f"""DELETE FROM {database_table} 
+                    WHERE [{nulogy_reports[report_code][filter_column]}] 
+                    BETWEEN '{from_threshold}' AND '{to_threshold}'""")
+
+    headers = next(report)
+    for row in report:
+        row = {k: v for k, v in zip(headers, row)}
+        sql.insert(table='factShipOrder', record=row)
+
 
 def downlad_report(download_url: str) -> str:
 
