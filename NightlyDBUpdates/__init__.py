@@ -191,9 +191,11 @@ async def process_invoice_report (days: int=7) -> None:
         row = {k: v for k, v in zip(headers, row)}
         sql.insert_or_update(table='factInvoice', key=headers[:-1], record=row)
 
-async def process_job_profitability_report (days: int=7) -> None:
+async def process_job_profitability_report (days: int=28) -> None:
     
     timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+    from_threshold = (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d 00:00")
+    to_threshold = timestamp.strftime("%Y-%m-%d 23:59")
 
     # Job Profitability Report
     report_code = 'job_profitability'
@@ -218,8 +220,8 @@ async def process_job_profitability_report (days: int=7) -> None:
     'purchase_order_number', 'reconciled_at', 'reconciliation_status', 'scenario_name', 'service_category_name', 'signed_off', 
     'site_name', 'standard_people', 'standard_person_hours', 'standard_person_hours_per_unit', 'standard_units_per_hour', 'total_charge', 
     'total_charge_per_unit', 'unit_of_measure', 'units_expected', 'units_produced', 'units_remaining']
-    filters = [{'column': 'actual_job_start_at', 'operator': 'between', 'from_threshold': '2022-01-01 00:00', #(timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M"),
-                                                                        'to_threshold': timestamp.strftime("%Y-%m-%d %H:%M")}]
+    filters = [{'column': 'actual_job_start_at', 'operator': 'between', 'from_threshold': from_threshold,
+                                                                        'to_threshold': to_threshold}]
     report = nulogy.get_report(report_code=report_code, columns=columns, filters=filters)
 
     # Item Master lookup table
@@ -232,18 +234,20 @@ async def process_job_profitability_report (days: int=7) -> None:
     headers = next(report)
     headers.append('Base unit of measure')
     headers.append('Base units produced')
-    headers.append('Timestamp')
     report = [row for row in report]
+
+    # remove old records
+    sql.execute(f"DELETE FROM factJobProfitability WHERE [Actual Job start date] BETWEEN '{from_threshold}' AND '{to_threshold}'")
+
     for row in report:
         row.append('')
         row.append('')
-        row.append(timestamp.strftime("%Y-%m-%d %H:%M"))
         row = {k: v for k, v in zip(headers, row)}
 
         row['Base unit of measure'] = item_base_unit_lookup[row['Item code']]
         row['Base units produced'] = nulogy.convertToBaseUnits(row['Item code'], row['Unit of measure'], row['Units produced'])
 
-        sql.insert_or_update(table='factJobProfitability', key=headers[:-1], record=row)
+        sql.insert(table='factJobProfitability', record=row)
     
 async def process_labor_report (days: int=7) -> None:
 
