@@ -249,31 +249,30 @@ async def process_job_profitability_report (days: int=28) -> None:
 
         sql.insert(table='factJobProfitability', record=row)
     
-async def process_labor_report (days: int=7) -> None:
+async def process_labor_report (days: int=28) -> None:
 
     timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+    from_threshold = (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d 00:00")
+    to_threshold = timestamp.strftime("%Y-%m-%d 23:59")
+    
     report_code = 'labor'
     columns = ['availability', 'badge_code', 'badge_type_name', 'badge_type_prefix', 'badge_type_rate', 
                'clock_in_at', 'clock_out_at', 'customer_name', 'duration', 'item_alternate_code_1', 'item_alternate_code_2', 
                'item_category_name', 'item_code', 'item_description', 'item_family_name', 'item_type_name', 'job_id', 
                'job_reference', 'line_efficiency', 'line_leader_name', 'line_name', 'payable_hours', 'performance', 
                'productive_hours', 'project_code', 'project_id', 'reference_1', 'reference_2', 'reference_3', 'site_name']
-    filters = [{'column': 'clock_in_at', 'operator': 'between', 'from_threshold': (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M"),
-                                                                        'to_threshold': timestamp.strftime("%Y-%m-%d %H:%M")}]
+    filters = [{'column': 'clock_in_at', 'operator': 'between', 'from_threshold': from_threshold,
+                                                                'to_threshold': to_threshold}]
 
     report = nulogy.get_report(report_code=report_code, columns=columns, filters=filters)
 
     headers = next(report)
-    headers.append('Timestamp')
     report = [row for row in report]
 
-    # Drop records from table that have been processed on a prior run
-    job_ids = set([row[16] for row in report])
-    for job in job_ids:
-        sql.drop_record(table='factLabor', key='Job ID', value=job)
+    # remove old records
+    sql.execute(f"DELETE FROM factLabor WHERE [Clock in time] BETWEEN '{from_threshold}' AND '{to_threshold}'")
 
     for row in report:
-        row.append(timestamp.strftime("%Y-%m-%d %H:%M"))
         row = {k: v for k, v in zip(headers, row)}
         sql.insert(table='factLabor', record=row)
 
