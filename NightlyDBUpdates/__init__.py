@@ -171,6 +171,9 @@ async def process_picks(days: int=7) -> None:
 async def process_invoice_report (days: int=7) -> None:
 
     timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
+    from_threshold = (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d 00:00")
+    to_threshold = timestamp.strftime("%Y-%m-%d 23:59")
+
     report_code = 'invoice'
     columns = ['alternate_code_1', 'alternate_code_2', 'bill_to', 'charge_per_unit', 'customer_code', 'customer_name',
                'customer_notes', 'internal_notes', 'invoice_status', 'invoiced_at', 'item_category_name', 'item_code', 
@@ -178,18 +181,19 @@ async def process_invoice_report (days: int=7) -> None:
                'po_line_item_number', 'project_code', 'project_id', 'project_reference_1', 'project_reference_2', 
                'project_reference_3', 'purchase_order_number', 'reference_1', 'reference_2', 'shipment_id', 'site_name', 
                'terms', 'total_charge', 'unit_of_measure', 'unit_quantity']
-    filters = [{'column': 'invoiced_at', 'operator': 'between', 'from_threshold': (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M"),
-                                                                      'to_threshold': timestamp.strftime("%Y-%m-%d %H:%M")}]
+    filters = [{'column': 'invoiced_at', 'operator': 'between', 'from_threshold': from_threshold,
+                                                                'to_threshold': to_threshold}]
 
     report = nulogy.get_report(report_code=report_code, columns=columns, filters=filters)
 
     headers = next(report)
-    headers.append('Timestamp')
     report = [row for row in report]
+
+    sql.execute(f"DELETE FROM factInvoice WHERE [Invoice date] BETWEEN '{from_threshold}' AND '{to_threshold}'")
+
     for row in report:
-        row.append(timestamp.strftime("%Y-%m-%d %H:%M"))
         row = {k: v for k, v in zip(headers, row)}
-        sql.insert_or_update(table='factInvoice', key=headers[:-1], record=row)
+        sql.insert(table='factInvoice', record=row)
 
 async def process_job_profitability_report (days: int=28) -> None:
     
