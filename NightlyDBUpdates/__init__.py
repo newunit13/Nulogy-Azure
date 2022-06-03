@@ -168,7 +168,7 @@ async def process_picks(days: int=7) -> None:
         row = {k: v for k, v in zip(headers, row)}
         sql.insert_or_update(table='factPickedInventory', key=headers[:-1], record=row)
 
-async def process_invoice_report (days: int=7) -> None:
+async def process_invoice_report (days: int=28) -> None:
 
     timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
     from_threshold = (timestamp - datetime.timedelta(days=days)).strftime("%Y-%m-%d 00:00")
