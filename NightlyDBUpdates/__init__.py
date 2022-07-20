@@ -292,7 +292,7 @@ async def process_inventory_snapshot () -> None:
     columns = ["pallet_number", "item_type", "customer_name"]
     report = nulogy.get_report(report_code=report_code, columns=columns)
     field_names = next(report)
-    inventory_snapshop_df = pd.DataFrame.from_records(report, columns=field_names)
+    df = pd.DataFrame.from_records(report, columns=field_names)
 
 
     report_code = "pallet_aging"
@@ -304,12 +304,35 @@ async def process_inventory_snapshot () -> None:
 
 
 
-    inventory_snapshop_df = inventory_snapshop_df.merge(pallet_aging_df, on='Pallet Number', how='left')
-    inventory_snapshop_df['timestamp'] = timestamp.strftime("%Y-%m-%d %H:%M")
+    df = df.merge(pallet_aging_df, on='Pallet Number', how='left')
+    df['timestamp'] = timestamp.strftime("%Y-%m-%d")
 
-    inventory_snapshop_df.to_sql('factInventory', sql.engine, if_exists='append', index=False, chunksize=1000)
+    logging.info(f"Inserting {len(df)} rows into factInventory")
+    df.to_sql('factInventory', sql.engine, if_exists='append', index=False, chunksize=1000)
 
     
+    logging.info('Processing inventory summary')
+
+    # Add Warehouse column
+    df['Warehouse'] = 'Other'
+    df.fillna(value={'Location': ''}, inplace=True)
+    df.loc[map(lambda l: l.startswith('B')          , df['Location']), 'Warehouse'] = 'Burnett'
+    df.loc[map(lambda l: l.startswith('L')          , df['Location']), 'Warehouse'] = 'Locust'
+    df.loc[map(lambda l: l.startswith('D')          , df['Location']), 'Warehouse'] = 'Dixie'
+    df.loc[map(lambda l: l.startswith('Line')       , df['Location']), 'Warehouse'] = 'Dixie'
+    df.loc[map(lambda l: l.startswith('LW')         , df['Location']), 'Warehouse'] = 'Locust West'
+    df.loc[map(lambda l: l.startswith('LOCUST WEST'), df['Location']), 'Warehouse'] = 'Locust West'
+
+
+    summary_df = df[['timestamp', 'Warehouse', 'Pallet Number']].drop_duplicates()
+    summary_df = summary_df.groupby(['timestamp', 'Warehouse']).count()
+    summary_df.reset_index(inplace=True)
+    summary_df.rename(columns={'timestamp': 'Date','Pallet Number': 'Pallet Count'}, inplace=True)
+
+    logging.info(f"Inserting {len(summary_df)} rows into factInventorySummary")
+    summary_df.to_sql('factInventorySummary', sql.engine, if_exists='append', index=False)
+
+
 
 async def main(mytimer: func.TimerRequest) -> None:
     est_timestamp = datetime.datetime.now(pytz.timezone('US/Eastern'))
