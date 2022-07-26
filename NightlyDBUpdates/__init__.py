@@ -303,10 +303,10 @@ async def process_inventory_snapshot () -> None:
     pallet_aging_df.rename(columns={"Pallet number": "Pallet Number"}, inplace=True)  # Rename column to match inventory_snapshop_df
 
 
-
     df = df.merge(pallet_aging_df, on='Pallet Number', how='left')
-    df['timestamp'] = timestamp.strftime("%Y-%m-%d")
+    df['timestamp'] = timestamp.strftime("%Y-%m-%d %H:%M")
 
+    df.drop_duplicates(inplace=True)
     logging.info(f"Inserting {len(df)} rows into factInventory")
     df.to_sql('factInventory', sql.engine, if_exists='append', index=False, chunksize=1000)
 
